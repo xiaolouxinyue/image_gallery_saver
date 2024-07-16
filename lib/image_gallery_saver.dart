@@ -1,7 +1,4 @@
 import 'dart:async';
-import 'dart:ffi';
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 
 class ImageGallerySaver {
@@ -11,13 +8,14 @@ class ImageGallerySaver {
   /// imageBytes can't null
   /// return Map type
   /// for example:{"isSuccess":true, "filePath":String?}
-  static FutureOr<dynamic> saveImage(Uint8List imageBytes,
-      {int quality = 80,
-      String? name,
-      bool isReturnImagePathOfIOS = false,
-      double? latitude,
-      double? longitude,
-      Int? createDate}) async {
+  static FutureOr<dynamic> saveImage(Uint8List imageBytes, {
+    int quality = 80,
+    String? name,
+    bool isReturnImagePathOfIOS = false,
+    double? latitude,
+    double? longitude,
+    int? createDate
+  }) async {
     final result = await _channel.invokeMethod('saveImageToGallery', <String, dynamic>{
       'imageBytes': imageBytes,
       'quality': quality,
@@ -31,8 +29,13 @@ class ImageGallerySaver {
   }
 
   /// Save the PNG，JPG，JPEG image or video located at [file] to the local device media gallery.
-  static Future saveFile(String file,
-      {String? name, bool isReturnPathOfIOS = false, double? latitude, double? longitude, Int? createDate}) async {
+  static Future saveFile(String file, {
+    String? name,
+    bool isReturnPathOfIOS = false,
+    double? latitude,
+    double? longitude,
+    int? createDate
+  }) async {
     final result = await _channel.invokeMethod('saveFileToGallery', <String, dynamic>{
       'file': file,
       'name': name,
