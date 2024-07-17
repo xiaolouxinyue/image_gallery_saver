@@ -114,8 +114,12 @@ class _MyHomePageState extends State<MyHomePage> {
     ByteData? byteData =
         await (image.toByteData(format: ui.ImageByteFormat.png));
     if (byteData != null) {
-      final result =
-          await ImageGallerySaver.saveImage(byteData.buffer.asUint8List());
+      final result = await ImageGallerySaver.saveImage(
+          byteData.buffer.asUint8List(),
+          latitude: 22.68,
+          longitude: 113.97,
+          createDate: 1721105329
+      );
       print(result);
       _toastInfo(result.toString());
     }
@@ -128,7 +132,11 @@ class _MyHomePageState extends State<MyHomePage> {
     final result = await ImageGallerySaver.saveImage(
         Uint8List.fromList(response.data),
         quality: 60,
-        name: "hello");
+        name: "hello",
+        latitude: 22.68,
+        longitude: 113.97,
+        createDate: 1721105329
+    );
     print(result);
     _toastInfo("$result");
   }
@@ -139,7 +147,7 @@ class _MyHomePageState extends State<MyHomePage> {
     String fileUrl =
         "https://hyjdoc.oss-cn-beijing.aliyuncs.com/hyj-doc-flutter-demo-run.gif";
     await Dio().download(fileUrl, savePath);
-    final result = await ImageGallerySaver.saveFile(savePath);
+    final result = await ImageGallerySaver.saveFile(savePath, latitude: 22.68, longitude: 113.97, createDate: 1721105329);
     print(result);
     _toastInfo("$result");
   }
@@ -147,12 +155,11 @@ class _MyHomePageState extends State<MyHomePage> {
   _saveVideo() async {
     var appDocDir = await getTemporaryDirectory();
     String savePath = appDocDir.path + "/temp.mp4";
-    String fileUrl =
-        "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    String fileUrl = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
     await Dio().download(fileUrl, savePath, onReceiveProgress: (count, total) {
       print((count / total * 100).toStringAsFixed(0) + "%");
     });
-    final result = await ImageGallerySaver.saveFile(savePath);
+    final result = await ImageGallerySaver.saveFile(savePath, latitude: 22.68, longitude: 113.97, createDate: 1721105329);
     print(result);
     _toastInfo("$result");
   }

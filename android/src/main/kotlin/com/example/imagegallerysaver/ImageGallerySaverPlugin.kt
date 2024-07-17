@@ -1,27 +1,28 @@
 package com.example.imagegallerysaver
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Environment
 import android.os.Build
+import android.os.Environment
 import android.provider.MediaStore
+import android.text.TextUtils
+import android.webkit.MimeTypeMap
+import androidx.exifinterface.media.ExifInterface
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
-import io.flutter.plugin.common.PluginRegistry.Registrar
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.IOException
-import android.text.TextUtils
-import android.webkit.MimeTypeMap
-
 
 class ImageGallerySaverPlugin : FlutterPlugin, MethodCallHandler {
     private var applicationContext: Context? = null
@@ -33,13 +34,20 @@ class ImageGallerySaverPlugin : FlutterPlugin, MethodCallHandler {
                 val image = call.argument<ByteArray>("imageBytes") ?: return
                 val quality = call.argument<Int>("quality") ?: return
                 val name = call.argument<String>("name")
+                val latitude = call.argument<Double>("latitude")
+                val longitude = call.argument<Double>("longitude")
+                val createDate = call.argument<Int>("createDate")
 
-                result.success(saveImageToGallery(BitmapFactory.decodeByteArray(image, 0, image.size), quality, name))
+                result.success(saveImageToGallery(BitmapFactory.decodeByteArray(image, 0, image.size), quality, name, latitude, longitude, createDate))
             }
             call.method == "saveFileToGallery" -> {
                 val path = call.argument<String>("file") ?: return
                 val name = call.argument<String>("name")
-                result.success(saveFileToGallery(path, name))
+                val latitude = call.argument<Double>("latitude")
+                val longitude = call.argument<Double>("longitude")
+                val createDate = call.argument<Int>("createDate")
+
+                result.success(saveFileToGallery(path, name, latitude, longitude, createDate))
             }
             else -> result.notImplemented()
         }
@@ -86,27 +94,48 @@ class ImageGallerySaverPlugin : FlutterPlugin, MethodCallHandler {
         return type
     }
 
-    private fun saveImageToGallery(bmp: Bitmap, quality: Int, name: String?): HashMap<String, Any?> {
+
+    private fun saveImageToGallery(bmp: Bitmap, quality: Int, name: String?, latitude: Double?, longitude: Double?, createDate: Int?): HashMap<String, Any?> {
         val context = applicationContext
-        val fileUri = generateUri("jpg", name = name)
         return try {
-            val fos = context?.contentResolver?.openOutputStream(fileUri)!!
-            println("ImageGallerySaverPlugin $quality")
-            bmp.compress(Bitmap.CompressFormat.JPEG, quality, fos)
-            fos.flush()
-            fos.close()
+            val fileName = name ?: System.currentTimeMillis().toString()
+            val targetFile = File(context!!.cacheDir, fileName)
+            val tos = FileOutputStream(targetFile)
+            bmp.compress(Bitmap.CompressFormat.JPEG, quality, tos)
+            tos.flush()
+            tos.close()
+            saveExifToFile(targetFile, latitude, longitude, createDate)
+
+            val fileUri = generateUri("jpg", name)
+
+            val outputStream = context?.contentResolver?.openOutputStream(fileUri)!!
+            val fileInputStream = FileInputStream(targetFile)
+
+            val buffer = ByteArray(10240)
+            var count = 0
+            while (fileInputStream.read(buffer).also { count = it } > 0) {
+                outputStream.write(buffer, 0, count)
+            }
+
+            outputStream.flush()
+            outputStream.close()
+            fileInputStream.close()
+
             context!!.sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, fileUri))
             bmp.recycle()
+            targetFile.delete()
             SaveResultModel(fileUri.toString().isNotEmpty(), fileUri.toString(), null).toHashMap()
         } catch (e: IOException) {
             SaveResultModel(false, null, e.toString()).toHashMap()
         }
     }
 
-    private fun saveFileToGallery(filePath: String, name: String?): HashMap<String, Any?> {
+    private fun saveFileToGallery(filePath: String, name: String?, latitude: Double?, longitude: Double?, createDate: Int?): HashMap<String, Any?> {
         val context = applicationContext
         return try {
             val originalFile = File(filePath)
+            saveExifToFile(originalFile, latitude, longitude, createDate)
+
             val fileUri = generateUri(originalFile.extension, name)
 
             val outputStream = context?.contentResolver?.openOutputStream(fileUri)!!
@@ -126,6 +155,31 @@ class ImageGallerySaverPlugin : FlutterPlugin, MethodCallHandler {
             SaveResultModel(fileUri.toString().isNotEmpty(), fileUri.toString(), null).toHashMap()
         } catch (e: IOException) {
             SaveResultModel(false, null, e.toString()).toHashMap()
+        }
+    }
+
+    /// Save the tag data into the original image file.
+    // This is expensive because it involves copying all the data from one file to another
+    // and deleting the old file and renaming the other.
+    @SuppressLint("RestrictedApi")
+    private fun saveExifToFile(file: File, latitude: Double?, longitude: Double?, createDate: Int?) {
+        try {
+            val exif = ExifInterface(file)
+            var shouldSave = false
+            if (latitude != null && longitude != null) {
+                exif.setLatLong(latitude, longitude)
+                shouldSave = true
+            }
+            if (createDate != null) {
+                val timestamp = createDate.toLong() * 1000
+                exif.setDateTime(timestamp)
+                shouldSave = true
+            }
+            if (shouldSave) {
+                exif.saveAttributes()
+            }
+        } catch (e: IOException) {
+            println("ImageGallerySaverPlugin ${e.toString()}")
         }
     }
 
